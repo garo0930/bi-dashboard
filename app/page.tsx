@@ -323,9 +323,9 @@ const [selectedStore, setSelectedStore] =
                 resolve(cleanRows);
               },
 
-              error: (error) => {
-                reject(error);
-              },
+              error: (error: unknown) => {
+  reject(error);
+},
             });
           }
         );
