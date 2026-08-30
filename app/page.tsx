@@ -1,6 +1,13 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState } from "react";
+import {
+  ChangeEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+
 import Papa from "papaparse";
 import Encoding from "encoding-japanese";
 import NaraMap from "./components/NaraMap";
@@ -251,6 +258,114 @@ export default function Home() {
 const [selectedStore, setSelectedStore] =
   useState<string>("全店舗");
   const [loadedFileKeys, setLoadedFileKeys] = useState<string[]>([]);
+
+  useEffect(() => {
+  const loadDefaultCsvFiles = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const csvFiles = [
+        {
+          path: "/data/sakurai-abe.csv",
+          store: "桜井安倍木材団地店",
+        },
+        {
+          path: "/data/sakurai-odono.csv",
+          store: "桜井粟殿店",
+        },
+      ] as const;
+
+      const allRows: CsvRow[] = [];
+
+      for (const csvFile of csvFiles) {
+        const response = await fetch(csvFile.path, {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `${csvFile.path} の読み込みに失敗しました。`
+          );
+        }
+
+        const buffer = await response.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+
+        const unicodeArray = Encoding.convert(bytes, {
+          from: "SJIS",
+          to: "UNICODE",
+        });
+
+        const text = Encoding.codeToString(unicodeArray);
+
+        const parsedRows = await new Promise<CsvRow[]>(
+          (resolve, reject) => {
+            Papa.parse<CsvRow>(text, {
+              header: true,
+              skipEmptyLines: true,
+
+              complete: (result) => {
+                const cleanRows: CsvRow[] = result.data
+                  .filter((row) =>
+                    Object.values(row).some((value) =>
+                      String(value ?? "").trim()
+                    )
+                  )
+                  .map(
+                    (row): CsvRow => ({
+                      ...row,
+                      店舗名: csvFile.store,
+                    })
+                  );
+
+                resolve(cleanRows);
+              },
+
+              error: (error) => {
+                reject(error);
+              },
+            });
+          }
+        );
+
+        allRows.push(...parsedRows);
+      }
+
+      setRows(allRows);
+
+      const loadedMonths = Array.from(
+        new Set(
+          allRows
+            .map(
+              (row) =>
+                parseDate(row[COLUMN.date])?.monthKey
+            )
+            .filter(Boolean) as string[]
+        )
+      ).sort();
+
+      if (loadedMonths.length > 0) {
+        setSelectedMonth(
+          loadedMonths[loadedMonths.length - 1]
+        );
+      }
+
+      setFileName("保存済みCSVから自動読込");
+      setLoading(false);
+    } catch (error) {
+      console.error(error);
+
+      setError(
+        "保存済みCSVの自動読み込みに失敗しました。"
+      );
+
+      setLoading(false);
+    }
+  };
+
+  loadDefaultCsvFiles();
+}, []);
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
