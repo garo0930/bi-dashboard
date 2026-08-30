@@ -260,6 +260,7 @@ const [selectedStore, setSelectedStore] =
   const [loadedFileKeys, setLoadedFileKeys] = useState<string[]>([]);
 
   useEffect(() => {
+    console.log("自動CSV読込 useEffect 実行");
   const loadDefaultCsvFiles = async () => {
     try {
       setLoading(true);
