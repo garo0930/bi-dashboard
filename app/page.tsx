@@ -813,13 +813,17 @@ return {
     });
 
     return Array.from(map.entries())
-      .map(([name, value]) => ({
-        name,
-        sales: value.sales,
-        profit: value.profit,
-        visitors: value.slips.size,
-      }))
-      .sort((a, b) => b.sales - a.sales);
+  .map(([name, value]) => ({
+    name,
+    sales: value.sales,
+    profit: value.profit,
+    profitRate:
+      value.sales > 0
+        ? (value.profit / value.sales) * 100
+        : 0,
+    visitors: value.slips.size,
+  }))
+  .sort((a, b) => b.sales - a.sales);
   }, [townFilteredRows]);
 
   const ageData = useMemo(() => {
@@ -1944,17 +1948,22 @@ const filteredTownData = useMemo(() => {
                       />
 
                       <Tooltip
-                        formatter={(value) => [
-                          formatYen(Number(value ?? 0)),
-                          "売上",
-                        ]}
-                      />
+  formatter={(value, name) => [
+    formatYen(Number(value ?? 0)),
+    name === "profit" ? "粗利額" : "売上",
+  ]}
+/>
 
                       <Bar
                         dataKey="sales"
                         fill="#2563eb"
                         radius={[0, 6, 6, 0]}
                       />
+                      <Bar
+  dataKey="profit"
+  fill="#16a34a"
+  radius={[0, 6, 6, 0]}
+/>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1974,14 +1983,22 @@ const filteredTownData = useMemo(() => {
                       </div>
 
                       <div className="text-right">
-                        <div className="font-bold">
-                          {formatYen(item.sales)}
-                        </div>
+  <div className="font-bold">
+    売上 {formatYen(item.sales)}
+  </div>
 
-                        <div className="text-xs text-slate-500">
-                          来店 {item.visitors}件
-                        </div>
-                      </div>
+  <div className="text-sm font-semibold text-emerald-600">
+    粗利 {formatYen(item.profit)}
+  </div>
+
+  <div className="text-xs text-slate-500">
+    粗利率 {item.profitRate.toFixed(1)}%
+  </div>
+
+  <div className="text-xs text-slate-500">
+    来店 {item.visitors}件
+  </div>
+</div>
                     </div>
                   ))}
                 </div>
