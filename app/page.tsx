@@ -4,6 +4,7 @@ import {
   ChangeEvent,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -11,6 +12,7 @@ import {
 import Papa from "papaparse";
 import Encoding from "encoding-japanese";
 import NaraMap from "./components/NaraMap";
+import { toPng } from "html-to-image";
 import {
   Bar,
   BarChart,
@@ -253,6 +255,9 @@ export default function Home() {
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [selectedTown, setSelectedTown] = useState<string | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<string>("");
+
+const staffAnalysisRef = useRef<HTMLElement>(null);
+  
  const [importStore, setImportStore] =
   useState<(typeof STORE_NAMES)[number]>("桜井安倍木材団地店");
 
@@ -882,10 +887,79 @@ return {
 const selectedStaffCategoryData = useMemo(() => {
   if (!selectedStaff) return [];
 
-  return staffCategoryData
-    .filter((item) => item.staff === selectedStaff)
+  // 個人を選択した場合
+  if (selectedStaff !== "全スタッフ") {
+    return staffCategoryData
+      .filter((item) => item.staff === selectedStaff)
+      .sort((a, b) => b.sales - a.sales);
+  }
+
+  // 全スタッフを選択した場合
+  const categoryMap = new Map<
+    string,
+    {
+      purchase: number;
+      sales: number;
+      profit: number;
+    }
+  >();
+
+  staffCategoryData.forEach((item) => {
+    if (!categoryMap.has(item.category)) {
+      categoryMap.set(item.category, {
+        purchase: 0,
+        sales: 0,
+        profit: 0,
+      });
+    }
+
+    const target = categoryMap.get(item.category)!;
+
+    target.purchase += item.purchase;
+    target.sales += item.sales;
+    target.profit += item.profit;
+  });
+
+  return Array.from(categoryMap.entries())
+    .map(([category, value]) => ({
+      staff: "全スタッフ",
+      category,
+      purchase: value.purchase,
+      sales: value.sales,
+      profit: value.profit,
+      profitRate:
+        value.sales > 0
+          ? (value.profit / value.sales) * 100
+          : 0,
+    }))
     .sort((a, b) => b.sales - a.sales);
 }, [staffCategoryData, selectedStaff]);
+
+const handleSaveStaffAnalysisImage = async () => {
+  if (!staffAnalysisRef.current) return;
+
+  try {
+    const dataUrl = await toPng(staffAnalysisRef.current, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: "#ffffff",
+    });
+
+    const link = document.createElement("a");
+
+    const staffName =
+      selectedStaff === "全スタッフ"
+        ? "全スタッフ"
+        : selectedStaff || "未選択";
+
+    link.download = `スタッフ分析_${staffName}.png`;
+    link.href = dataUrl;
+    link.click();
+  } catch (error) {
+    console.error("画像保存に失敗しました:", error);
+    alert("画像の保存に失敗しました。");
+  }
+};
 
   const ageData = useMemo(() => {
     const order = [
@@ -2545,7 +2619,10 @@ subtitle={
   </ChartCard>
 </section>
 
-<section className="mt-6 rounded-2xl bg-white p-5 shadow-sm md:p-6">
+<section
+  ref={staffAnalysisRef}
+  className="mt-6 rounded-2xl bg-white p-5 shadow-sm md:p-6"
+>
   <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
     <div>
       <div className="text-xs font-bold uppercase tracking-wider text-blue-600">
@@ -2572,6 +2649,7 @@ subtitle={
         className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
       >
         <option value="">担当者を選択</option>
+        <option value="全スタッフ">全スタッフ</option>
 
         {staffData.map((staff) => (
           <option key={staff.name} value={staff.name}>
@@ -2579,6 +2657,15 @@ subtitle={
           </option>
         ))}
       </select>
+      <button
+  type="button"
+  onClick={handleSaveStaffAnalysisImage}
+  disabled={!selectedStaff || selectedStaffCategoryData.length === 0}
+  data-html2canvas-ignore="true"
+  className="mt-2 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+>
+  画像を保存
+</button>
     </div>
   </div>
 
