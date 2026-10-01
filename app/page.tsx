@@ -252,8 +252,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [selectedTown, setSelectedTown] = useState<string | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<string>("");
  const [importStore, setImportStore] =
   useState<(typeof STORE_NAMES)[number]>("桜井安倍木材団地店");
+
 
 const [selectedStore, setSelectedStore] =
   useState<string>("全店舗");
@@ -825,6 +827,65 @@ return {
   }))
   .sort((a, b) => b.sales - a.sales);
   }, [townFilteredRows]);
+
+  const staffCategoryData = useMemo(() => {
+  const map = new Map<
+    string,
+    {
+      purchase: number;
+      sales: number;
+      profit: number;
+    }
+  >();
+
+  townFilteredRows.forEach((row) => {
+    const staff =
+      String(row[COLUMN.staff] ?? "").trim() || "未設定";
+
+    const category =
+      String(row[COLUMN.majorCategory] ?? "").trim() || "未分類";
+
+    const key = `${staff}|||${category}`;
+
+    if (!map.has(key)) {
+      map.set(key, {
+        purchase: 0,
+        sales: 0,
+        profit: 0,
+      });
+    }
+
+    const target = map.get(key)!;
+
+    target.purchase += parseNumber(row[COLUMN.purchase]);
+    target.sales += parseNumber(row[COLUMN.sales]);
+    target.profit += parseNumber(row[COLUMN.profit]);
+  });
+
+  return Array.from(map.entries()).map(([key, value]) => {
+    const [staff, category] = key.split("|||");
+
+    return {
+      staff,
+      category,
+      purchase: value.purchase,
+      sales: value.sales,
+      profit: value.profit,
+      profitRate:
+        value.sales > 0
+          ? (value.profit / value.sales) * 100
+          : 0,
+    };
+  });
+}, [townFilteredRows]);
+
+const selectedStaffCategoryData = useMemo(() => {
+  if (!selectedStaff) return [];
+
+  return staffCategoryData
+    .filter((item) => item.staff === selectedStaff)
+    .sort((a, b) => b.sales - a.sales);
+}, [staffCategoryData, selectedStaff]);
 
   const ageData = useMemo(() => {
     const order = [
@@ -2080,6 +2141,8 @@ const filteredTownData = useMemo(() => {
                 <LegendList data={visitTypeData} />
               </ChartCard>
             </section>
+
+
             <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
   <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
     <div>
@@ -2480,6 +2543,149 @@ subtitle={
       ))}
     </div>
   </ChartCard>
+</section>
+
+<section className="mt-6 rounded-2xl bg-white p-5 shadow-sm md:p-6">
+  <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div>
+      <div className="text-xs font-bold uppercase tracking-wider text-blue-600">
+        STAFF ANALYSIS
+      </div>
+
+      <h2 className="mt-1 text-xl font-bold text-slate-900">
+        スタッフ個人分析
+      </h2>
+
+      <p className="mt-1 text-sm text-slate-500">
+        担当者ごとの大分類別 買取・売上・粗利・粗利率
+      </p>
+    </div>
+
+    <div className="w-full md:w-64">
+      <label className="mb-1 block text-sm font-semibold text-slate-600">
+        担当者
+      </label>
+
+      <select
+        value={selectedStaff}
+        onChange={(e) => setSelectedStaff(e.target.value)}
+        className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+      >
+        <option value="">担当者を選択</option>
+
+        {staffData.map((staff) => (
+          <option key={staff.name} value={staff.name}>
+            {staff.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  </div>
+
+  {!selectedStaff ? (
+    <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+      担当者を選択すると大分類別の実績を表示します。
+    </div>
+  ) : selectedStaffCategoryData.length === 0 ? (
+    <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">
+      該当するデータがありません。
+    </div>
+  ) : (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] border-collapse">
+        <thead>
+          <tr className="border-b border-slate-200 text-left text-sm text-slate-500">
+            <th className="px-4 py-3">大分類</th>
+            <th className="px-4 py-3 text-right">買取金額</th>
+            <th className="px-4 py-3 text-right">売上</th>
+            <th className="px-4 py-3 text-right">粗利</th>
+            <th className="px-4 py-3 text-right">粗利率</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {selectedStaffCategoryData.map((item) => (
+            <tr
+              key={`${item.staff}-${item.category}`}
+              className="border-b border-slate-100 last:border-b-0"
+            >
+              <td className="px-4 py-4 font-semibold text-slate-800">
+                {item.category}
+              </td>
+
+              <td className="px-4 py-4 text-right">
+                {formatYen(item.purchase)}
+              </td>
+
+              <td className="px-4 py-4 text-right font-semibold">
+                {formatYen(item.sales)}
+              </td>
+
+              <td className="px-4 py-4 text-right font-semibold">
+                {formatYen(item.profit)}
+              </td>
+
+              <td className="px-4 py-4 text-right font-semibold">
+                {item.profitRate.toFixed(1)}%
+              </td>
+
+              
+            </tr>
+          ))}
+          <tr className="border-t-2 border-slate-300 bg-slate-50">
+  <td className="px-4 py-4 font-bold text-slate-900">
+    合計
+  </td>
+
+  <td className="px-4 py-4 text-right font-bold text-slate-900">
+    {formatYen(
+      selectedStaffCategoryData.reduce(
+        (sum, item) => sum + item.purchase,
+        0
+      )
+    )}
+  </td>
+
+  <td className="px-4 py-4 text-right font-bold text-slate-900">
+    {formatYen(
+      selectedStaffCategoryData.reduce(
+        (sum, item) => sum + item.sales,
+        0
+      )
+    )}
+  </td>
+
+  <td className="px-4 py-4 text-right font-bold text-slate-900">
+    {formatYen(
+      selectedStaffCategoryData.reduce(
+        (sum, item) => sum + item.profit,
+        0
+      )
+    )}
+  </td>
+
+  <td className="px-4 py-4 text-right font-bold text-slate-900">
+    {(() => {
+      const totalSales = selectedStaffCategoryData.reduce(
+        (sum, item) => sum + item.sales,
+        0
+      );
+
+      const totalProfit = selectedStaffCategoryData.reduce(
+        (sum, item) => sum + item.profit,
+        0
+      );
+
+      return totalSales > 0
+        ? `${((totalProfit / totalSales) * 100).toFixed(1)}%`
+        : "0.0%";
+    })()}
+  </td>
+</tr>
+        </tbody>
+      </table>
+    </div>
+  )}
 </section>
 
 <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm md:p-6">
